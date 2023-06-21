@@ -43,30 +43,31 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 The aim of the study is to look at the distribution of herbivore mites:  
-- *Tetranychus sp.*  (Yellow/red mite)   
-- *Panonychus ulmi*  (European red mite)   
-- *Bryobia rubrioculus* (brwon mite)  
+- [*Tetranychus sp.*](https://www.biobee.com/pests/two-spotted-spider-mite/)  (Yellow/red mite)   
+- [*Panonychus ulmi*](http://www.agri.huji.ac.il/mepests/pest/Panonychus_ulmi/)  (European red mite)   
+- [*Bryobia rubrioculus*](http://www.agri.huji.ac.il/mepests/pest/Bryobia_rubrioculus/) (brwon mite)  
 
 and the predatory mites:  
-- *Typhlodromus athiasae* (local species)   
-- *Neoseiulus californicus* (artificially introduced 30 years ago, and augmented in the current study).  
+- [*Typhlodromus athiasae*](http://www.agri.huji.ac.il/mepests/enemy/Typhlodromus_athiasae/)  (local species)   
+- [*Neoseiulus californicus*](https://entnemdept.ufl.edu/creatures/beneficial/neoseiulus_californicus.htm) (artificially introduced 30 years ago, and augmented in the current study).  
 
 the predatory mites, *Neoseiulus californicus*, artificially reared at Biobee Sde Eliyahu, were applied on ___ via the sachets method, in 3 concentrations:  
 
-- **High**: one sachet per tree  
-- **Low**: one sachet every 5 trees  
-- **Control**:  no sachets applied  
+- **High**: one sachet per tree, 8 rows.    
+- **Low**: one sachet every 5 trees, 7 rows.    
+- **Control**:  no sachets applied, 7 rows.     
 
 ---------
 
 **The study design was as follow:**  
-A total of ~9 dunams, containing 22 raws, in each raw one type of cultivar: Gala, Gold, Pink or Grani Smith.  
-In each raw, 68 trees, except for Smith, which is planted in higher gaps and so 48 trees are planted per raw.   
+A total of ~9 dunams, containing 22 rows, in each row one type of cultivar: Gala, Gold, Pink or Grani Smith.  
+
+In each row, 68 trees, except for Smith, which is planted in higher gaps and so 48 trees are planted per row.   
 
 
 ```{r}
 map <- read.csv(check.names=FALSE, "/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/study_map.csv")
-kable(map, caption = "Study design, each column is one raw") %>%
+kable(map, caption = "Study design, each column is one row") %>%
   column_spec(1:23,border_left = T, border_right = T) %>%
 kable_styling()
 ```
@@ -79,17 +80,18 @@ the level of infestation was classified as follow:
 - **"5-10"**  
 - **10+"**, more then 10 mites/eggs per leave  
 
-5-8 trees were monitored per raw, and the trees were marked and re-inspected each time.  
+5-8 trees were monitored per row, and the trees were marked and re-inspected each time.  
 
-
-
+---------
+*The study was conducted in collaboration of [Shamir Research Institute](http://www.sri.org.il/Home), and [Biobee company](https://www.biobee.com/).*   
+--------
 ### load data
 ```{r}
 meta <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/18jun.csv")
 design <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/design.csv")
 
-data <- left_join(design,meta, by = "raw") %>% # match the cultivar name to each raw
-  filter(raw !="23") %>% # remove raw 23 (we checked only once)
+data <- left_join(design,meta, by = "row") %>% # match the cultivar name to each row
+  filter(row !="23") %>% # remove row 23 (we checked only once)
   mutate(across(everything(), as.character)) 
 
  data[data == ""] <- NA
@@ -98,8 +100,8 @@ data <- left_join(design,meta, by = "raw") %>% # match the cultivar name to each
  #write the arranged data as csv file
 #write_csv(x= data, file="/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/outfiles/data.csv")
 
-#data <- left_join(design,meta, by = "raw") %>% # match the cultivar name to each raw
- # filter(raw !="23")
+#data <- left_join(design,meta, by = "row") %>% # match the cultivar name to each row
+ # filter(row !="23")
  #data <- data %>% mutate(across(-1,  ~ as.numeric(replace(., . == '', 0))))  %>% 
 #  mutate(across(everything(), as.character)) %>%
 #replace(is.na(.),0)
@@ -196,10 +198,10 @@ in_leaves %>%
 
 ## Mites' eggs distribution on leaves
 ### on outer leaves
-```{r eval=FALSE, include=FALSE}
+```{r}
 # count  mites eggs on 5 outer leaves:
 out_leaves_eggs <- data %>% 
-  dplyr::select( c(raw, treatment, strain, tree),contains('Egg')) %>%
+  dplyr::select( c(row, treatment, strain, tree),contains('Egg')) %>%
   dplyr::select(-starts_with('inner')) 
 
 # make a list of the columns to keep:
@@ -247,7 +249,7 @@ out_leaves_eggs %>%
 # count  mites eggs  
 #on 5 inner leaves:
 in_leaves_eggs <- data %>% 
-  dplyr::select( c(raw, treatment, strain, tree),contains('egg')) %>%
+  dplyr::select( c(row, treatment, strain, tree),contains('egg')) %>%
   dplyr::select(-starts_with('outer')) %>%
   pivot_longer(cols = starts_with('inner')) %>% 
   separate(name, c('leave_position', 'leave_number', 'egg_type'))  %>% 
