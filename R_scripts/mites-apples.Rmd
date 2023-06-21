@@ -1,0 +1,285 @@
+---
+title: "Mites distribution in apple orchard, and the effect of predatory mites, as biological control"
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: yes
+    toc_depth: 5
+    toc_float:
+      collapsed: yes
+      df_print: paged
+editor_options: 
+  chunk_output_type: console
+---
+
+```{=html}
+<style type="text/css">
+  body{
+  font-size: 12pt;
+}
+</style>
+```
+## load libraries
+```{r libraries, echo=TRUE, message=FALSE, warning=FALSE}
+library("tidyverse")
+library("plyr")
+library("dplyr")
+library("ggplot2")
+#library("scales")
+#library("ggpubr")
+#library("gridExtra")
+#library("grid")
+#library("GGally")
+library("data.table")
+library("stringr")
+library("janitor")
+library("knitr")
+library("kableExtra")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+                 #    fig.width = 20,
+                  #    fig.asp = 0.6,
+                   #   out.width = "100%")
+```
+
+The aim of the study is to look at the distribution of herbivore mites:  
+- *Tetranychus sp.*  (Yellow/red mite)   
+- *Panonychus ulmi*  (European red mite)   
+- *Bryobia rubrioculus* (brwon mite)  
+
+and the predatory mites:  
+- *Typhlodromus athiasae* (local species)   
+- *Neoseiulus californicus* (artificially introduced 30 years ago, and augmented in the current study).  
+
+the predatory mites, *Neoseiulus californicus*, artificially reared at Biobee Sde Eliyahu, were applied on ___ via the sachets method, in 3 concentrations:  
+
+- **High**: one sachet per tree  
+- **Low**: one sachet every 5 trees  
+- **Control**:  no sachets applied  
+
+---------
+
+**The study design was as follow:**  
+A total of ~9 dunams, containing 22 raws, in each raw one type of cultivar: Gala, Gold, Pink or Grani Smith.  
+In each raw, 68 trees, except for Smith, which is planted in higher gaps and so 48 trees are planted per raw.   
+
+
+```{r}
+map <- read.csv(check.names=FALSE, "/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/study_map.csv")
+kable(map, caption = "Study design, each column is one raw") %>%
+  column_spec(1:23,border_left = T, border_right = T) %>%
+kable_styling()
+```
+
+the mites population was monitored every ~2 weeks, by inspecting 10 leaves under a magnified glass, and observing adult and eggs (5 outer and 5 inner leaves).   
+
+the level of infestation was classified as follow:  
+- **"0"**: no mites observed  
+- **"1-5"**  
+- **"5-10"**  
+- **10+"**, more then 10 mites/eggs per leave  
+
+5-8 trees were monitored per raw, and the trees were marked and re-inspected each time.  
+
+
+
+### load data
+```{r}
+meta <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/18jun.csv")
+design <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/design.csv")
+
+data <- left_join(design,meta, by = "raw") %>% # match the cultivar name to each raw
+  filter(raw !="23") %>% # remove raw 23 (we checked only once)
+  mutate(across(everything(), as.character)) 
+
+ data[data == ""] <- NA
+ data[is.na(data)] <- 0
+
+ #write the arranged data as csv file
+#write_csv(x= data, file="/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/outfiles/data.csv")
+
+#data <- left_join(design,meta, by = "raw") %>% # match the cultivar name to each raw
+ # filter(raw !="23")
+ #data <- data %>% mutate(across(-1,  ~ as.numeric(replace(., . == '', 0))))  %>% 
+#  mutate(across(everything(), as.character)) %>%
+#replace(is.na(.),0)
+```
+
+## Adult mites distribution on leaves
+### on outer leaves
+```{r}
+# count adult mites 
+#on 5 outer leaves:
+out_leaves <- data %>% 
+  dplyr::select(-contains('egg')) %>%
+  dplyr::select(-starts_with('inner')) %>%
+  pivot_longer(cols = starts_with('outer')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species'))  %>% 
+  group_by( mite_species, tree, strain, treatment) %>%
+  dplyr::count(value, .drop = FALSE)
+
+# plot the distribution 
+out_leaves$value <- factor(out_leaves$value, levels = c("0","1-5","5-10","10+"))
+
+out_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on outer leaves,
+comparison between the 4 species") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~mite_species)
+
+out_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on outer leaves
+         comparison between the 4 apples cultivars") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~strain)
+```
+
+### on Inner leaves
+```{r}
+# count adult mites 
+#on 5 outer leaves:
+in_leaves <- data %>% 
+  dplyr::select(-contains('egg')) %>%
+  dplyr::select(-starts_with('outer')) %>%
+  pivot_longer(cols = starts_with('inner')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species'))  %>% 
+  group_by( mite_species, tree, strain, treatment) %>%
+  dplyr::count(value, .drop = FALSE)
+
+# plot the distribution 
+in_leaves$value <- factor(in_leaves$value, levels = c("0","1-5","5-10","10+"))
+
+in_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on inner leaves
+         comparison between the 4 mite species") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~mite_species)
+
+in_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on inner leaves
+         comparison between the 4 apple cultivars") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~strain)
+```
+
+## Mites' eggs distribution on leaves
+### on outer leaves
+```{r eval=FALSE, include=FALSE}
+# count  mites eggs on 5 outer leaves:
+out_leaves_eggs <- data %>% 
+  dplyr::select( c(raw, treatment, strain, tree),contains('Egg')) %>%
+  dplyr::select(-starts_with('inner')) 
+
+# make a list of the columns to keep:
+keep <- out_leaves_eggs %>% dplyr::select(starts_with('outer')) %>%
+  colnames()
+out_leaves_eggs <- out_leaves_eggs %>% 
+  mutate_at(keep, as.character) %>%
+  pivot_longer(cols = starts_with('outer')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'egg_type'))  %>%
+  group_by(egg_type, tree, strain, treatment) %>%
+  dplyr::count(value, .drop = FALSE)
+
+# plot the distribution 
+out_leaves_eggs$value <- factor(out_leaves_eggs$value, levels = c("0","1-5","5-10","10+"))
+
+out_leaves_eggs %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "Egg distribution on outer leaves") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~egg_type)
+
+out_leaves_eggs %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "Egg distribution on outer leaves") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~strain)
+```
+
+### on inner leaves
+```{r}
+# count  mites eggs  
+#on 5 inner leaves:
+in_leaves_eggs <- data %>% 
+  dplyr::select( c(raw, treatment, strain, tree),contains('egg')) %>%
+  dplyr::select(-starts_with('outer')) %>%
+  pivot_longer(cols = starts_with('inner')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'egg_type'))  %>% 
+  group_by(egg_type, tree, strain, treatment) %>%
+  dplyr::count(value, .drop = FALSE)
+
+# plot the distribution 
+in_leaves_eggs$value <- factor(in_leaves_eggs$value, levels = c("0","1-5","5-10","10+"))
+
+in_leaves_eggs %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "Egg distribution on outer leaves") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~egg_type)
+
+in_leaves_eggs %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "Egg distribution on outer leaves") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~strain)
+```
