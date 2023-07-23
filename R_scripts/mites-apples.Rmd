@@ -26,6 +26,7 @@ library("tidyverse")
 library("plyr")
 library("dplyr")
 library("ggplot2")
+library("RColorBrewer")
 #library("scales")
 #library("ggpubr")
 #library("gridExtra")
@@ -83,19 +84,549 @@ the level of infestation was classified as follow:
 5-8 trees were monitored per row, and the trees were marked and re-inspected each time.  
 
 ---------
-*The study was conducted in collaboration of [Shamir Research Institute](http://www.sri.org.il/Home), and [Biobee company](https://www.biobee.com/).*   
+ * The study was conducted in collaboration of [Shamir Research Institute](http://www.sri.org.il/Home), and [Biobee company](https://www.biobee.com/).*   
 --------
-### load data
+
+/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/5_jun_num.csv
+## 5 june 2023
+#### as numeric
 ```{r}
-meta <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/18jun.csv")
+meta_5jun_num <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/5_jun_num.csv")
 design <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/design.csv")
 
-data <- left_join(design,meta, by = "row") %>% # match the cultivar name to each row
+data_5jun_num  <- right_join(design,meta_5jun_num, by = "row") %>% 
+  # match the cultivar name to each row , and remove rows 21,22,23 (not tested in this date)
+  mutate(across(everything(), as.character)) 
+
+ data_5jun_num[data_5jun_num == ""] <- NA
+ data_5jun_num[is.na(data_5jun_num)] <- 0
+ 
+all_leaves_5jun<- data_5jun_num %>% 
+  pivot_longer(cols = contains('_')) %>% 
+  separate(name, c('mite_species','leave_number'))
+ 
+# order the levels 
+all_leaves_5jun$mite_species <- factor(all_leaves_5jun$mite_species, level=c("tetranychus", "panonychus", "bryobia", "predatory"))
+all_leaves_5jun$treatment <- factor(all_leaves_5jun$treatment, level=c("control", "low", "high"))
+
+all_leaves_5jun %>% 
+  group_by(treatment, mite_species) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = treatment)) + 
+ geom_bar(position = "dodge",
+           stat = "identity") +
+        labs(title = "Mite count per leaf, 5/6/2023") +
+  #geom_errorbar(aes(ymin=0, ymax=mean+sd)) +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+
+
+# by apple strain 
+ all_leaves_5jun %>% 
+  group_by(treatment, mite_species,strain) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = strain)) + 
+ geom_bar(position = "dodge",
+           stat = "identity")+
+    # geom_errorbar(position = "dodge",aes(ymin=0, ymax=mean+sd)) +
+    labs(title = "Mite count per leaf, 5/6/2023") +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+
+#in boxplot the outliers really bias the plots, making it hard to detect differences
+# all_leaves_5jun %>% 
+#  group_by(treatment, mite_species) %>%
+#  ggplot(aes(y=value, x=treatment, fill = treatment)) + 
+#   geom_boxplot() +
+#  facet_wrap(~mite_species) + 
+#  theme_classic() 
+```
+ 
+##### spatial distribution - bubble plot  
+```{r}
+df = all_leaves_5jun %>%
+  mutate(tree = as.numeric(tree)) %>%
+    mutate(row = as.numeric(row))
+
+ 
+df %>%  dplyr::filter(mite_species ==c ("tetranychus", "predatory")) %>%
+ arrange(desc(value)) %>%
+ggplot(aes(x=row, y=tree, size=value, color=mite_species)) +
+    geom_point(alpha=0.5) +
+    scale_size(range = c(2, 20), name="Mite count") +
+    scale_y_continuous(breaks=seq(0,70,5)) +   
+     scale_x_reverse(breaks=seq(20,1)) +
+   theme(text = element_text(size=20)) +
+    labs(title = "Mite count per leaf") +
+   theme(panel.background = element_rect(fill = NA),
+  panel.grid.major = element_line(colour = "grey90"),  panel.grid.minor.x = element_blank(),  panel.grid.minor.y = element_blank()) 
+```
+ 
+## 18 June 2023
+#### as numeric
+```{r}
+meta_18jun_num <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/18_jun_num.csv")
+design <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/design.csv")
+
+data_18jun_num <- right_join(design,meta_18jun_num, by = "row") %>% 
+  mutate(across(everything(), as.character)) 
+
+ data_18jun_num[data_18jun_num == ""] <- NA
+ data_18jun_num[is.na(data_18jun_num)] <- 0
+
+# count adult mites 
+#on 5 outer leaves:
+out_leaves <- data_18jun_num %>% 
+   #dplyr::mutate(across(everything(), as.character)) %>%
+  dplyr::select(-contains('egg')) %>%
+  dplyr::select(-starts_with('inner')) %>%
+  pivot_longer(cols = starts_with('outer')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species')) 
+
+in_leaves <- data_18jun_num %>% 
+   #dplyr::mutate(across(everything(), as.character)) %>%
+  dplyr::select(-contains('egg')) %>%
+  dplyr::select(-starts_with('outer')) %>%
+  pivot_longer(cols = starts_with('inner')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species')) 
+
+all_leaves_18jun = bind_rows(in_leaves, out_leaves)
+
+# order the levels 
+all_leaves_18jun$mite_species <- factor(all_leaves_18jun$mite_species, level=c("tetranychus", "panonychus", "bryobia", "predatory"))
+all_leaves_18jun$treatment <- factor(all_leaves_18jun$treatment, level=c("control", "low", "high"))
+
+all_leaves_18jun %>% 
+  group_by(treatment, mite_species) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = treatment)) + 
+ geom_bar(position = "dodge",
+           stat = "identity") +
+        labs(title = "Mite count per leaf, 18/6/2023") +
+  #geom_errorbar(aes(ymin=0, ymax=mean+sd)) +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+  
+# by leave position
+ all_leaves_18jun %>% 
+  group_by(treatment, mite_species,leave_position) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = leave_position)) + 
+ geom_bar(position = "dodge",
+           stat = "identity")+
+  #    geom_errorbar(position = "dodge",aes(ymin=0, ymax=mean+sd)) +
+    labs(title = "Mite count per leaf, 18/6/2023") +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+
+# by apple strain 
+ all_leaves_18jun %>% 
+  group_by(treatment, mite_species,leave_position,strain) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = strain)) + 
+ geom_bar(position = "dodge",
+           stat = "identity")+
+    # geom_errorbar(position = "dodge",aes(ymin=0, ymax=mean+sd)) +
+    labs(title = "Mite count per leaf, 18/6/2023") +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+
+#in boxplot the outliers really bias the plots, making it hard to detect differences
+#  all_leaves_18jun %>% 
+#  group_by(treatment, mite_species) %>%
+#  ggplot(aes(y=value, x=treatment, fill = treatment)) + 
+#   geom_boxplot() +
+#  facet_wrap(~mite_species) + 
+#  theme_classic() 
+```
+
+##### spatial distribution - bubble plot  
+```{r}
+df = all_leaves_18jun %>%
+  separate(tree, c('row', 'tree'))  %>%
+  mutate(tree = as.numeric(tree)) %>%
+    mutate(row = as.numeric(row))
+
+ df %>%  dplyr::filter(mite_species ==c ("tetranychus", "predatory")) %>%
+ arrange(desc(value)) %>%
+ggplot(aes(x=row, y=tree, size=value, color=mite_species)) +
+    geom_point(alpha=0.5) +
+    scale_size(range = c(2, 20), name="Mite count") +
+    scale_y_continuous(breaks=seq(0,70,5)) +   
+     scale_x_reverse(breaks=seq(20,1)) +
+   theme(text = element_text(size=20)) +
+    labs(title = "Mite count per leaf, 18/6/2023") +
+   theme(panel.background = element_rect(fill = NA),
+  panel.grid.major = element_line(colour = "grey90"),  panel.grid.minor.x = element_blank(),  panel.grid.minor.y = element_blank()) 
+```
+
+
+## 7 July 2023
+#### as numeric
+```{r}
+meta_7jul_num <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/7jul_num.csv")
+design <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/design.csv")
+
+data_7jul_num <- right_join(design,filter(meta_7jul_num,row !=c("21", "22", "23")), by = "row") %>% 
+  # match the cultivar name to each row , and remove rows 21,22,23 (not tested in this date)
+  mutate(across(everything(), as.character)) 
+
+ data_7jul_num[data_7jul_num == ""] <- NA
+ data_7jul_num[is.na(data_7jul_num)] <- 0
+
+# count adult mites 
+#on 5 outer leaves:
+out_leaves <- data_7jul_num %>% 
+   #dplyr::mutate(across(everything(), as.character)) %>%
+  dplyr::select(-contains('egg')) %>%
+  dplyr::select(-starts_with('inner')) %>%
+  pivot_longer(cols = starts_with('outer')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species')) 
+
+in_leaves <- data_7jul_num %>% 
+   #dplyr::mutate(across(everything(), as.character)) %>%
+  dplyr::select(-contains('egg')) %>%
+  dplyr::select(-starts_with('outer')) %>%
+  pivot_longer(cols = starts_with('inner')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species')) 
+
+all_leaves_7jul = bind_rows(in_leaves, out_leaves)
+
+# order the levels 
+all_leaves_7jul$mite_species <- factor(all_leaves_7jul$mite_species, level=c("tetranychus", "panonychus", "bryobia", "predatory"))
+all_leaves_7jul$treatment <- factor(all_leaves_7jul$treatment, level=c("control", "low", "high"))
+
+all_leaves_7jul %>% 
+  group_by(treatment, mite_species) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = treatment)) + 
+ geom_bar(position = "dodge",
+           stat = "identity") +
+        labs(title = "Mite count per leaf") +
+  #geom_errorbar(aes(ymin=0, ymax=mean+sd)) +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+  
+# by leave position
+ all_leaves_7jul %>% 
+  group_by(treatment, mite_species,leave_position) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = leave_position)) + 
+ geom_bar(position = "dodge",
+           stat = "identity")+
+  #    geom_errorbar(position = "dodge",aes(ymin=0, ymax=mean+sd)) +
+    labs(title = "Mite count per leaf") +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+
+# by apple strain 
+ all_leaves_7jul %>% 
+  group_by(treatment, mite_species,leave_position,strain) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>%
+  ggplot(aes(y=mean, x=treatment, fill = strain)) + 
+ geom_bar(position = "dodge",
+           stat = "identity")+
+    # geom_errorbar(position = "dodge",aes(ymin=0, ymax=mean+sd)) +
+    labs(title = "Mite count per leaf") +
+  facet_wrap(~mite_species, scales ="free") + 
+  theme_classic() 
+
+#in boxplot the outliers really bias the plots, making it hard to detect differences
+#  all_leaves_7jul %>% 
+#  group_by(treatment, mite_species) %>%
+#  ggplot(aes(y=value, x=treatment, fill = treatment)) + 
+#   geom_boxplot() +
+#  facet_wrap(~mite_species) + 
+#  theme_classic() 
+```
+ 
+##### spatial distribution - bubble plot  
+```{r}
+df = all_leaves_7jul %>%
+  separate(tree, c('row', 'tree'))  %>%
+  mutate(tree = as.numeric(tree)) %>%
+    mutate(row = as.numeric(row))
+
+df %>%  dplyr::filter(mite_species ==c ("tetranychus", "predatory")) %>%
+ arrange(desc(value)) %>%
+ggplot(aes(x=row, y=tree, size=value, color=mite_species)) +
+    geom_point(alpha=0.5) +
+    scale_size(range = c(2, 20), name="Mite count") +
+    scale_y_continuous(breaks=seq(0,70,5)) +   
+     scale_x_reverse(breaks=seq(20,1)) +
+   theme(text = element_text(size=20)) +
+    labs(title = "Mite count per leaf") +
+   theme(panel.background = element_rect(fill = NA),
+  panel.grid.major = element_line(colour = "grey90"),  panel.grid.minor.x = element_blank(),  panel.grid.minor.y = element_blank()) 
+```
+
+## collect all 3 monitoring dates
+```{r}
+# we created 3 files, one per monitoring date:
+ #all_leaves_5jun, all_leaves_18jun, all_leaves_7jul
+
+# add column with time from application
+
+moni_1 <- all_leaves_5jun %>% dplyr::select(c("row","treatment","strain","day","tree", "mite_species", "value")) %>%
+  mutate(tree = as.character(tree)) %>%
+    mutate(row = as.character(row)) 
+
+moni_2 <-all_leaves_18jun %>% dplyr::select(c("row","treatment","strain","day","tree", "mite_species", "value")) %>%    mutate(row = as.character(row)) 
+
+moni_3 <-all_leaves_7jul %>% separate(tree, into= c("row","tree")) %>%
+dplyr::select(c("row","treatment","strain","day","tree", "mite_species", "value")) 
+
+data = bind_rows(moni_1, moni_2, moni_3)
+  
+data %>%
+  filter(mite_species != "predatory") %>%
+  group_by(treatment, mite_species, day) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>% 
+  ggplot(aes(day, mean, color = mite_species)) +
+   geom_line(size = 1.5) +  
+  geom_point() +
+#  geom_errorbar(aes(ymin=0, ymax=mean+sd)) +
+  facet_wrap(~treatment, nrow = 3) + 
+  theme_classic() + 
+  labs(y="Mean mite count per leaf") +
+  scale_x_continuous(breaks=seq(13,50, 5)) +theme(text=element_text(size=21))
+
+data %>%
+  #filter(mite_species != "predatory") %>%
+  group_by(treatment, mite_species, day) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>% 
+  ggplot(aes(day, mean, color = mite_species)) +
+   geom_line(size = 1.5) +  
+  geom_point() +
+#  geom_errorbar(aes(ymin=0, ymax=mean+sd)) +
+  facet_wrap(~treatment, nrow = 3) + 
+  theme_classic() + 
+  labs(y="Mean mite count per leaf") +
+  scale_x_continuous(breaks=seq(13,50, 5)) +theme(text=element_text(size=21))
+
+
+data %>%
+  filter(mite_species == "predatory") %>%
+  group_by(treatment, mite_species, day) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>% 
+  ggplot(aes(day, mean, color = mite_species)) +
+   geom_line(size = 1.5, color = "#69b3a2") +  
+  geom_point(color = "#69b3a2") +
+#  geom_errorbar(aes(ymin=0, ymax=mean+sd)) +
+  #facet_wrap(~treatment, nrow = 3) + 
+  theme_classic() + 
+  labs(y="Mean mite count per leaf") +
+  scale_x_continuous(breaks=seq(13,50, 5)) +theme(text=element_text(size=21))
+
+
+data %>%
+  filter(mite_species == "predatory") %>%
+  group_by(treatment, mite_species, day) %>%
+  dplyr::summarise(mean=mean(value),
+            sd=sd(value), .groups = 'drop') %>% 
+  ggplot(aes(day, mean, color = treatment)) +
+   geom_line(size = 1.5) +  
+  geom_point() +
+#  geom_errorbar(aes(ymin=0, ymax=mean+sd)) +
+  #facet_wrap(~treatment, nrow = 3) + 
+  theme_classic() + 
+  labs(y="Mean mite count per leaf") +
+  scale_x_continuous(breaks=seq(13,50, 5)) +theme(text=element_text(size=21))
+```
+
+
+
+
+
+
+
+## as order
+```{r}
+meta_7jul <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/7jul.csv")
+design <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/design.csv")
+
+data_7jul <- right_join(design,filter(meta_7jul,row !=c("21", "22", "23")), by = "row") %>% 
+  # match the cultivar name to each row , and remove rows 21,22,23 (not tested in this date)
+  mutate(across(everything(), as.character)) 
+
+ data_7jul[data_7jul == ""] <- NA
+ data_7jul[is.na(data_7jul)] <- 0
+
+ 
+ #write the arranged data as csv file
+#write_csv(x= data_7jul, file="/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/outfiles/data_7jul.csv")
+
+#data <- left_join(design,meta, by = "row") %>% # match the cultivar name to each row
+ # filter(row !="23")
+ #data <- data %>% mutate(across(-1,  ~ as.numeric(replace(., . == '', 0))))  %>% 
+#  mutate(across(everything(), as.character)) %>%
+#replace(is.na(.),0)
+```
+
+### Adult mites distribution on leaves
+#### on outer leaves
+```{r}
+# count adult mites 
+#on 5 outer leaves:
+out_leaves <- data_7jul %>% 
+   dplyr::mutate(across(everything(), as.character)) %>%
+  dplyr::select(-contains('egg')) %>%
+  dplyr::select(-starts_with('inner')) %>%
+  pivot_longer(cols = starts_with('outer')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species'))  %>% 
+  group_by( mite_species, tree, strain, treatment) %>%
+  dplyr::count(value, .drop = FALSE) %>%
+  mutate(leave_position = "outer_leave")
+
+#on 5 outer leaves:
+in_leaves <- data_7jul %>% 
+   dplyr::mutate(across(everything(), as.character)) %>%
+  dplyr::select(-contains('egg')) %>%
+  pivot_longer(cols = contains('inn')) %>% 
+  separate(name, c('leave_position', 'leave_number', 'mite_species'))  %>% 
+  group_by( mite_species, tree, strain, treatment) %>%
+  dplyr::count(value, .drop = FALSE) %>%
+  mutate(leave_position = "inner_leave")
+
+#all leaves:
+leaves = 
+  bind_rows(in_leaves, out_leaves)
+```
+
+```{r}
+# plot the distribution 
+out_leaves$value <- factor(out_leaves$value, levels = c("0","1", "2","3","4","5+","10+", "20+", "30+"))
+out_leaves$mite_species <- factor(out_leaves$mite_species, level=c("tetranychus", "panonychus", "bryobia", "predatory"))
+out_leaves$treatment <- factor(out_leaves$treatment, level=c("control", "low", "high"))
+
+# scales::show_col(brewer.pal(9, name = "PiYG")) # show the codes of colors for 9 levels
+
+out_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on *outer leaves*,
+comparison between the 4 species") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + 
+  facet_wrap(~mite_species) + scale_fill_manual(values=c("#66b032", "#ffeda0","#fed976","#fed24c","#fd8d3c", "#fc4e2a", "#e31a1c","#bd0026","#800026")) 
+
+
+out_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=mite_species)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on *outer leaves*,
+comparison between the 4 species") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15,angle = 45, hjust=1),
+        axis.title.x = element_blank()) + 
+  facet_wrap(~treatment) + scale_fill_manual(values=c("#66b032", "#ffeda0","#fed976","#fed24c","#fd8d3c", "#fc4e2a", "#e31a1c","#bd0026","#800026")) 
+
+out_leaves %>% filter(mite_species == "predatory") %>%
+# separate(tree, into= c("row","tree")) %>%
+  ggplot(aes(fill=value, y=n, x=mite_species)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on *outer leaves*,
+comparison between the 4 species") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.title.x = element_blank()) + 
+  facet_wrap(~row+tree) + scale_fill_manual(values=c("#66b032", "#ffeda0","#fed976","#fed24c","#fd8d3c", "#fc4e2a", "#e31a1c","#bd0026","#800026")) 
+
+out_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=mite_species)) + 
+geom_boxplot() +  facet_wrap(~treatment) + scale_fill_manual(values=c("#abdda4", "#ffeda0","#fed976","#fed24c","#fd8d3c", "#fc4e2a", "#e31a1c","#bd0026","#800026")) 
+
+out_leaves %>%
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+geom_boxplot() + scale_fill_manual(values=c("#abdda4", "#ffeda0","#fed976","#fed24c","#fd8d3c", "#fc4e2a", "#e31a1c","#bd0026","#800026")) +  facet_wrap(~mite_species) 
+
+
+out_leaves %>% 
+  ggplot(aes(fill=value, y=n, x=treatment)) + 
+    geom_bar(position="fill", stat="identity") +
+    xlab("Treatment") + 
+    ylab("Outer leaves count per tree") +
+    labs(title = "mite infestation distribution on outer leaves
+         comparison between the 4 apples cultivars") +
+    labs(fill = "Infestation 
+     level") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15),
+        axis.title.x = element_blank()) + scale_fill_manual(values=c("#66b032", "#FFC300","#FF5733","#C70039")) +
+  facet_wrap(~strain)
+```
+
+heatmap
+```{r}
+in_leaves %>% filter(mite_species != "predatory") %>% 
+   filter(value !="30+") %>%
+  separate(tree, into= c("row","tree")) %>% 
+  dplyr::mutate_at(c("tree","n","row"), as.integer) %>% 
+ggplot(aes(row, tree, fill= n)) + 
+  geom_tile() +scale_fill_distiller(palette = "YlOrRd", trans = "reverse") +
+  labs(title = "leaf infestation level per tree, 
+*inner leaves*")
+
+ in_leaves %>% filter(mite_species == "predatory") %>% 
+   filter(value = c("1","2","3")) %>%
+  separate(tree, into= c("row","tree")) %>% 
+  dplyr::mutate_at(c("tree","n","row"), as.numeric) %>% 
+ggplot(aes(row, tree, fill= n)) + 
+  geom_tile() +scale_fill_distiller(palette = "YlOrRd", trans = "reverse") +
+  labs(title = "leaf infestation level per tree, 
+*inner leaves*")
+ 
+ 
+out_leaves %>% filter(mite_species == "predatory") %>% 
+   filter(value !="0") %>%
+  separate(tree, into= c("row","tree")) %>% 
+  dplyr::mutate_at(c("tree","n","row"), as.numeric) %>% 
+ggplot(aes(row, tree, fill= n)) + 
+  geom_tile() +scale_fill_distiller(palette = "YlOrRd", trans = "reverse")+
+  labs(title = "leaf infestation level per tree, 
+*outer leaves*")
+
+
+#  PiYG
+
+```
+
+## 18 June 2023
+### load data
+```{r}
+meta_18jun <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/18jun.csv")
+design <- read.csv("/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/data/design.csv")
+
+data_18jun <- left_join(design,meta_18jun, by = "row") %>% # match the cultivar name to each row
   filter(row !="23") %>% # remove row 23 (we checked only once)
   mutate(across(everything(), as.character)) 
 
- data[data == ""] <- NA
- data[is.na(data)] <- 0
+ data_18jun[data_18jun == ""] <- NA
+ data_18jun[is.na(data_18jun)] <- 0
 
  #write the arranged data as csv file
 #write_csv(x= data, file="/Users/nuriteliash/Documents/GitHub/Biological-control-mites-apples/outfiles/data.csv")
@@ -107,12 +638,12 @@ data <- left_join(design,meta, by = "row") %>% # match the cultivar name to each
 #replace(is.na(.),0)
 ```
 
-## Adult mites distribution on leaves
-### on outer leaves
+### Adult mites distribution on leaves
+#### on outer leaves
 ```{r}
 # count adult mites 
 #on 5 outer leaves:
-out_leaves <- data %>% 
+out_leaves <- data_18jun %>% 
   dplyr::select(-contains('egg')) %>%
   dplyr::select(-starts_with('inner')) %>%
   pivot_longer(cols = starts_with('outer')) %>% 
@@ -152,7 +683,7 @@ out_leaves %>%
   facet_wrap(~strain)
 ```
 
-### on Inner leaves
+#### on Inner leaves
 ```{r}
 # count adult mites 
 #on 5 outer leaves:
@@ -196,8 +727,8 @@ in_leaves %>%
   facet_wrap(~strain)
 ```
 
-## Mites' eggs distribution on leaves
-### on outer leaves
+### Mites' eggs distribution on leaves
+#### on outer leaves
 ```{r}
 # count  mites eggs on 5 outer leaves:
 out_leaves_eggs <- data %>% 
@@ -244,7 +775,7 @@ out_leaves_eggs %>%
   facet_wrap(~strain)
 ```
 
-### on inner leaves
+#### on inner leaves
 ```{r}
 # count  mites eggs  
 #on 5 inner leaves:
